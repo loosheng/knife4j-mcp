@@ -1,0 +1,24 @@
+{
+  "name": "knife4j-mcp",
+  "version": "0.0.0",
+  "module": "index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./index.ts --packages external --outdir dist",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "@types/polka": "^0.5.7",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.8.0",
+    "js-yaml": "^4.1.0",
+    "ofetch": "^1.4.1",
+    "openapi2markdown": "^0.0.4",
+    "polka": "^0.5.2",
+    "zod": "^3.24.2"
+  }
+}
