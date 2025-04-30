@@ -20,7 +20,7 @@ This project provides a Model Context Protocol (MCP) server that converts OpenAP
   "mcpServers": {
     "knife4j": {
       "command": "npx",
-      "args": ["-y", "exa-mcp"],
+      "args": ["-y", "knife4j-mcp"],
       "env": {
         "DOCS_URL": "http://<your-knife4j-host>/v3/api-docs,http://<your-knife4j-host>/v2/api-docs"
       }
