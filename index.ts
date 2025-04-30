@@ -1,38 +1,38 @@
-import Polka from "polka";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { z } from "zod";
-import { dump } from "js-yaml";
-import { version } from "./package.json";
-import { openapi2markdown } from "openapi2markdown";
-import { ofetch } from "ofetch";
+import Polka from "polka"
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
+import { z } from "zod"
+import { dump } from "js-yaml"
+import { version } from "./package.json"
+import { openapi2markdown } from "openapi2markdown"
+import { ofetch } from "ofetch"
 
 // Check environment variables
-const DOCS_URL = process.env.DOCS_URL;
+const DOCS_URL = process.env.DOCS_URL
 if (!DOCS_URL) {
-  throw new Error("DOCS_URL environment variable is not set");
+  throw new Error("DOCS_URL environment variable is not set")
 }
 
 // Parse multiple URLs
-const docsUrls = DOCS_URL.split(",").map(url => url.trim());
+const docsUrls = DOCS_URL.split(",").map((url) => url.trim())
 
 // Store document content
 type ApiDoc = {
-  markdown: string;
+  markdown: string
   modules: {
-    name: string;
-    description: string;
+    name: string
+    description: string
     apis: {
-      name: string;
-      path: string;
-      method: string;
-      summary: string;
-    }[];
-  }[];
-};
+      name: string
+      path: string
+      method: string
+      summary: string
+    }[]
+  }[]
+}
 
-let apiDocs: ApiDoc[] = [];
+let apiDocs: ApiDoc[] = []
 
 // Initialize MCP server
 const server = new McpServer(
@@ -45,69 +45,79 @@ const server = new McpServer(
       logging: {},
     },
   }
-);
+)
 
 // Extract modules and API information from OpenAPI document
 async function parseOpenApiToMarkdown(openApiContent: any): Promise<string> {
   try {
     // Use openapi2markdown library to convert OpenAPI to Markdown
-    const markdown = await openapi2markdown(openApiContent, { lang: 'zhCN' });
-    return markdown.toString();
+    const markdown = await openapi2markdown(openApiContent, { lang: "zhCN" })
+    return markdown.toString()
   } catch (error: any) {
-    console.error("Failed to parse OpenAPI document:", error);
-    return `# Parsing Failed\n\nUnable to parse OpenAPI document: ${error.message}`;
+    console.error("Failed to parse OpenAPI document:", error)
+    return `# Parsing Failed\n\nUnable to parse OpenAPI document: ${error.message}`
   }
 }
 
 // Extract modules and API information from Markdown
-function extractModulesFromMarkdown(markdown: string): ApiDoc['modules'] {
+function extractModulesFromMarkdown(markdown: string): ApiDoc["modules"] {
   // Parsing logic, adapted to the provided Markdown structure
-  const modules: ApiDoc['modules'] = [];
+  const modules: ApiDoc["modules"] = []
 
   // Use regular expressions to match second-level headings as modules
-  const moduleRegex = /^## (.+?)(?:\r?\n|\r|$)/gm;
-  let moduleMatch;
+  const moduleRegex = /^## (.+?)(?:\r?\n|\r|$)/gm
+  let moduleMatch
 
   while ((moduleMatch = moduleRegex.exec(markdown)) !== null) {
-    const moduleName = moduleMatch[1].trim();
-    const moduleStartIndex = moduleMatch.index;
+    const moduleName = moduleMatch[1].trim()
+    const moduleStartIndex = moduleMatch.index
 
     // Find the start position of the next module
-    const nextModuleRegex = /^## /gm;
-    nextModuleRegex.lastIndex = moduleStartIndex + moduleMatch[0].length;
-    const nextModuleMatch = nextModuleRegex.exec(markdown);
-    const moduleEndIndex = nextModuleMatch ? nextModuleMatch.index : markdown.length;
+    const nextModuleRegex = /^## /gm
+    nextModuleRegex.lastIndex = moduleStartIndex + moduleMatch[0].length
+    const nextModuleMatch = nextModuleRegex.exec(markdown)
+    const moduleEndIndex = nextModuleMatch
+      ? nextModuleMatch.index
+      : markdown.length
 
     // Extract module content
-    const moduleContent = markdown.substring(moduleStartIndex, moduleEndIndex).trim();
+    const moduleContent = markdown
+      .substring(moduleStartIndex, moduleEndIndex)
+      .trim()
 
     // Extract module description (first paragraph of text after the module title, until the first third-level heading)
-    const descriptionMatch = moduleContent.match(/^## .+?\r?\n\r?\n([\s\S]+?)(?=\r?\n### |$)/);
-    const moduleDescription = descriptionMatch ? descriptionMatch[1].trim() : '';
+    const descriptionMatch = moduleContent.match(
+      /^## .+?\r?\n\r?\n([\s\S]+?)(?=\r?\n### |$)/
+    )
+    const moduleDescription = descriptionMatch ? descriptionMatch[1].trim() : ""
 
     // Extract API list
-    const apis = [];
+    const apis = []
 
     if (apis.length === 0) {
       // Match all third-level headings as API names
-      const fallbackApiRegex = /### (.+?)(?:\r?\n|\r)([\s\S]*?)(?=\r?\n### |$)/g;
-      let fallbackApiMatch;
+      const fallbackApiRegex = /### (.+?)(?:\r?\n|\r)([\s\S]*?)(?=\r?\n### |$)/g
+      let fallbackApiMatch
 
-      while ((fallbackApiMatch = fallbackApiRegex.exec(moduleContent)) !== null) {
-        const apiName = fallbackApiMatch[1].trim();
-        const apiContent = fallbackApiMatch[2].trim();
+      while (
+        (fallbackApiMatch = fallbackApiRegex.exec(moduleContent)) !== null
+      ) {
+        const apiName = fallbackApiMatch[1].trim()
+        const apiContent = fallbackApiMatch[2].trim()
 
         // Try to extract HTTP method and path from API content
-        const methodPathMatch = apiContent.match(/```http\r?\n([A-Z]+) ([^\r\n]+)/);
-        const method = methodPathMatch ? methodPathMatch[1].trim() : "Unknown";
-        const path = methodPathMatch ? methodPathMatch[2].trim() : "Unknown";
+        const methodPathMatch = apiContent.match(
+          /```http\r?\n([A-Z]+) ([^\r\n]+)/
+        )
+        const method = methodPathMatch ? methodPathMatch[1].trim() : "Unknown"
+        const path = methodPathMatch ? methodPathMatch[2].trim() : "Unknown"
 
         apis.push({
           name: apiName,
           path: path,
           method: method,
           summary: apiName,
-        });
+        })
       }
     }
 
@@ -115,76 +125,87 @@ function extractModulesFromMarkdown(markdown: string): ApiDoc['modules'] {
       name: moduleName,
       description: moduleDescription,
       apis,
-    });
+    })
   }
 
-  return modules;
+  return modules
 }
 
 // Get API details
-function getApiDetailsFromMarkdown(markdown: string, moduleName: string, apiName: string): string {
+function getApiDetailsFromMarkdown(
+  markdown: string,
+  moduleName: string,
+  apiName: string
+): string {
   // Find module section - using more relaxed regular expressions
-  const moduleRegex = new RegExp(`^## ${escapeRegExp(moduleName)}(?:\\r?\\n|\\r|$)`, 'm');
-  const moduleMatch = markdown.match(moduleRegex);
+  const moduleRegex = new RegExp(
+    `^## ${escapeRegExp(moduleName)}(?:\\r?\\n|\\r|$)`,
+    "m"
+  )
+  const moduleMatch = markdown.match(moduleRegex)
 
   if (!moduleMatch || moduleMatch.index === undefined) {
-    return `Module not found: ${moduleName}`;
+    return `Module not found: ${moduleName}`
   }
 
-  const moduleStartIndex = moduleMatch.index;
+  const moduleStartIndex = moduleMatch.index
 
   // Find the start position of the next module
-  const nextModuleRegex = /^## /gm;
-  nextModuleRegex.lastIndex = moduleStartIndex + moduleMatch[0].length;
-  const nextModuleMatch = nextModuleRegex.exec(markdown);
-  const moduleEndIndex = nextModuleMatch ? nextModuleMatch.index : markdown.length;
+  const nextModuleRegex = /^## /gm
+  nextModuleRegex.lastIndex = moduleStartIndex + moduleMatch[0].length
+  const nextModuleMatch = nextModuleRegex.exec(markdown)
+  const moduleEndIndex = nextModuleMatch
+    ? nextModuleMatch.index
+    : markdown.length
 
   // Extract module content
-  const moduleContent = markdown.substring(moduleStartIndex, moduleEndIndex);
+  const moduleContent = markdown.substring(moduleStartIndex, moduleEndIndex)
 
   // Find API section - using more relaxed regular expressions
-  const apiRegex = new RegExp(`^### ${escapeRegExp(apiName)}(?:\\r?\\n|\\r|$)`, 'm');
-  const apiMatch = moduleContent.match(apiRegex);
+  const apiRegex = new RegExp(
+    `^### ${escapeRegExp(apiName)}(?:\\r?\\n|\\r|$)`,
+    "m"
+  )
+  const apiMatch = moduleContent.match(apiRegex)
 
   if (!apiMatch || apiMatch.index === undefined) {
-    return `API not found in module ${moduleName}: ${apiName}`;
+    return `API not found in module ${moduleName}: ${apiName}`
   }
 
-  const apiStartIndex = apiMatch.index;
+  const apiStartIndex = apiMatch.index
 
   // Find the start position of the next API
-  const nextApiRegex = /^### /gm;
-  nextApiRegex.lastIndex = apiStartIndex + apiMatch[0].length;
-  const nextApiMatch = nextApiRegex.exec(moduleContent);
-  const apiEndIndex = nextApiMatch ? nextApiMatch.index : moduleContent.length;
+  const nextApiRegex = /^### /gm
+  nextApiRegex.lastIndex = apiStartIndex + apiMatch[0].length
+  const nextApiMatch = nextApiRegex.exec(moduleContent)
+  const apiEndIndex = nextApiMatch ? nextApiMatch.index : moduleContent.length
 
   // Extract API content
-  return moduleContent.substring(apiStartIndex, apiEndIndex).trim();
+  return moduleContent.substring(apiStartIndex, apiEndIndex).trim()
 }
 
 // Helper function: Escape special characters in regular expressions
 function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") // $& means the whole matched string
 }
 
 // Initialization function: Get and parse all documents
 async function initializeDocs() {
   try {
     for (const url of docsUrls) {
-      const openApiContent = await ofetch(url);
-      const markdown = await parseOpenApiToMarkdown(openApiContent);
-      const modules = extractModulesFromMarkdown(markdown);
+      const openApiContent = await ofetch(url)
+      const markdown = await parseOpenApiToMarkdown(openApiContent)
+      const modules = extractModulesFromMarkdown(markdown)
 
       apiDocs.push({
         markdown,
         modules,
-      });
+      })
     }
   } catch (error) {
-    throw error;
+    throw error
   }
 }
-
 
 // Tool 1: get_docs - Get a list of all available document modules
 server.tool(
@@ -195,23 +216,29 @@ server.tool(
     try {
       // Ensure documents are initialized
       if (apiDocs.length === 0) {
-        await initializeDocs();
+        await initializeDocs()
       }
 
       // Collect all modules
-      const allModules = apiDocs.flatMap(doc => doc.modules);
+      const allModules = apiDocs.flatMap((doc) => doc.modules)
       return {
         content: [
           {
             type: "text",
-            text: dump(allModules.map(module => ({
-              name: module.name,
-              description: module.description,
-              api_count: module.apis.length,
-            }))),
+            text: [
+              "[docs list start]",
+              dump(
+                allModules.map((module) => ({
+                  name: module.name,
+                  description: module.description,
+                  api_count: module.apis.length,
+                }))
+              ),
+              "[docs list end]",
+            ].join("\n"),
           },
         ],
-      };
+      }
     } catch (error) {
       return {
         content: [
@@ -221,10 +248,10 @@ server.tool(
           },
         ],
         isError: true,
-      };
+      }
     }
   }
-);
+)
 
 // Tool 2: get_module_apis - Get a list of all APIs under the specified module
 server.tool(
@@ -237,21 +264,27 @@ server.tool(
     try {
       // Ensure documents are initialized
       if (apiDocs.length === 0) {
-        await initializeDocs();
+        await initializeDocs()
       }
 
       // Find the specified module
       for (const doc of apiDocs) {
-        const module = doc.modules.find(m => m.name === args.module_name);
+        const module = doc.modules.find((m) => m.name === args.module_name)
         if (module) {
           return {
             content: [
               {
                 type: "text",
-                text: dump(module.apis),
+                text: module
+                  ? [
+                      "[module apis start]",
+                      dump(module.apis),
+                      "[module apis end]",
+                    ].join("\n")
+                  : `Module not found: ${args.module_name}`,
               },
             ],
-          };
+          }
         }
       }
 
@@ -263,7 +296,7 @@ server.tool(
           },
         ],
         isError: true,
-      };
+      }
     } catch (error) {
       return {
         content: [
@@ -273,10 +306,10 @@ server.tool(
           },
         ],
         isError: true,
-      };
+      }
     }
   }
-);
+)
 
 // Tool 3: get_api_details - Get detailed information about a specific API
 server.tool(
@@ -290,24 +323,32 @@ server.tool(
     try {
       // Ensure documents are initialized
       if (apiDocs.length === 0) {
-        await initializeDocs();
+        await initializeDocs()
       }
 
       // Find the specified module and API
       for (const doc of apiDocs) {
-        const module = doc.modules.find(m => m.name === args.module_name);
+        const module = doc.modules.find((m) => m.name === args.module_name)
         if (module) {
-          const api = module.apis.find(a => a.name === args.api_name);
+          const api = module.apis.find((a) => a.name === args.api_name)
           if (api) {
-            const apiDetails = getApiDetailsFromMarkdown(doc.markdown, args.module_name, args.api_name);
+            const apiDetails = getApiDetailsFromMarkdown(
+              doc.markdown,
+              args.module_name,
+              args.api_name
+            )
             return {
               content: [
                 {
                   type: "text",
-                  text: apiDetails,
+                  text: [
+                    "[api details start]",
+                    apiDetails,
+                    "[api details end]",
+                  ].join("\n"),
                 },
               ],
-            };
+            }
           }
         }
       }
@@ -320,7 +361,7 @@ server.tool(
           },
         ],
         isError: true,
-      };
+      }
     } catch (error) {
       return {
         content: [
@@ -330,40 +371,40 @@ server.tool(
           },
         ],
         isError: true,
-      };
+      }
     }
   }
-);
+)
 
 // Start the server
 if (process.argv.includes("--sse")) {
-  const transports = new Map<string, SSEServerTransport>();
-  const port = Number(process.env.PORT || "3000");
+  const transports = new Map<string, SSEServerTransport>()
+  const port = Number(process.env.PORT || "3000")
 
-  const app = Polka();
+  const app = Polka()
 
   app.get("/sse", async (_req, res) => {
-    const transport = new SSEServerTransport("/messages", res);
-    transports.set(transport.sessionId, transport);
+    const transport = new SSEServerTransport("/messages", res)
+    transports.set(transport.sessionId, transport)
     res.on("close", () => {
-      transports.delete(transport.sessionId);
-    });
-    await server.connect(transport);
-  });
+      transports.delete(transport.sessionId)
+    })
+    await server.connect(transport)
+  })
 
   app.post("/messages", async (req, res) => {
-    const sessionId = req.query.sessionId as string;
-    const transport = transports.get(sessionId);
+    const sessionId = req.query.sessionId as string
+    const transport = transports.get(sessionId)
     if (transport) {
-      await transport.handlePostMessage(req, res);
+      await transport.handlePostMessage(req, res)
     } else {
-      res.status(400).send("No transport found for sessionId");
+      res.status(400).send("No transport found for sessionId")
     }
-  });
+  })
 
-  app.listen(port);
-  console.log(`SSE server running at: http://localhost:${port}/sse`);
+  app.listen(port)
+  console.log(`SSE server running at: http://localhost:${port}/sse`)
 } else {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
 }
