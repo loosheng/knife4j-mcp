@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "build": "bun build ./index.ts --packages external --outdir dist",
+    "release": "bumpp && npm publish",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/js-yaml": "^4.0.9",
     "@types/polka": "^0.5.7",
+    "bumpp": "^10.1.0",
     "typescript": "^5"
   },
   "dependencies": {
