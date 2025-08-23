@@ -2,14 +2,19 @@
 
 MCP server for [Knife4j](https://doc.xiaominfo.com/) OpenAPI documentation.
 
-This project provides a Model Context Protocol (MCP) server that converts OpenAPI documentation to Markdown format, making it easily accessible to LLMs.
+This project provides a Model Context Protocol (MCP) server that converts OpenAPI documentation to Markdown format with robust fault-tolerant parsing, making it easily accessible to LLMs even when dealing with malformed or non-standard OpenAPI specifications.
 
 ## Features
 
-- Converts OpenAPI documentation to Markdown format
-- Extracts modules and APIs from the documentation
-- Provides detailed API information
-- Supports multiple documentation sources
+- **Fault-Tolerant Parsing**: 4-layer fallback system ensures content is always extracted
+  - Standard parsing with `openapi2markdown`
+  - Auto-cleaning of problematic fields and retrying
+  - Manual markdown construction from JSON structure
+  - Fallback to basic document structure summary
+- **Thread-Safe Architecture**: Concurrent request handling with lazy initialization
+- **Multiple Documentation Sources**: Support for comma-separated OpenAPI URLs
+- **Robust Error Handling**: Detailed logging and graceful degradation
+- **Type-Safe Implementation**: Full TypeScript support with proper interfaces
 
 ## Usage
 
@@ -29,13 +34,39 @@ This project provides a Model Context Protocol (MCP) server that converts OpenAP
 }
 ```
 
+### Server Modes
+
+**Default (stdio mode)**: For MCP client integration
+```bash
+npx knife4j-mcp
+```
+
+**SSE Mode**: For HTTP-based access
+```bash
+npx knife4j-mcp --sse
+```
+Server runs on port 3000 (or PORT env var) with endpoints:
+- `/sse` - Server-Sent Events transport
+- `/messages` - POST message handling
+
 ## Available Tools
 
-The server provides three main tools:
+The server provides three main tools with improved naming:
 
-1. `get_docs` - Get a list of all available document modules
-2. `get_module_apis` - Get a list of all APIs under the specified module
-3. `get_api_details` - Get detailed information about a specific API
+1. `list_modules` - List all available API documentation modules with overview
+2. `list_apis` - List all APIs within a specific module
+3. `show_api` - Show complete documentation for a specific API
+
+## Fault-Tolerant Processing
+
+The system handles problematic OpenAPI documents through multiple strategies:
+
+- **Layer 1**: Standard `openapi2markdown` parsing
+- **Layer 2**: Document sanitization (removes x-extensions, fixes non-ASCII refs)
+- **Layer 3**: Manual markdown construction from JSON structure
+- **Layer 4**: Basic document structure analysis
+
+This ensures users receive useful content even from malformed specifications.
 
 ## Development
 
@@ -43,9 +74,26 @@ The server provides three main tools:
 # Install dependencies
 bun install
 
-# Run the server
+# Build the project
+bun run build
+
+# Type checking
+npx tsc --noEmit
+
+# Run the server directly
 bun run index.ts
+
+# Run in SSE mode for testing
+bun run index.ts --sse
 ```
+
+## Architecture
+
+- **Single-file MCP Server**: Complete implementation in `index.ts`
+- **DocsManager Class**: Thread-safe document state management
+- **Utility Functions**: Unified section parsing and error handling
+- **Environment Configuration**: `DOCS_URL` for OpenAPI source URLs
+
 ## License
 
 MIT
