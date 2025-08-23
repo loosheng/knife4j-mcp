@@ -1,6 +1,6 @@
 {
   "name": "knife4j-mcp",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "MCP server for Knife4j OpenAPI documentation",
   "author": "loosheng",
   "homepage": "https://github.com/loosheng/knife4j-mcp",
