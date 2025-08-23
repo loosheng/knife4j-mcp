@@ -7,7 +7,7 @@
         "@modelcontextprotocol/sdk": "^1.8.0",
         "js-yaml": "^4.1.0",
         "ofetch": "^1.4.1",
-        "openapi2markdown": "^0.0.5",
+        "openapi2markdown": "^0.0.6",
         "polka": "^0.5.2",
         "zod": "^3.24.2",
       },
@@ -277,7 +277,7 @@
 
     "openapi-types": ["openapi-types@12.1.3", "", {}, "sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw=="],
 
-    "openapi2markdown": ["openapi2markdown@0.0.5", "", { "dependencies": { "@joggr/tempo": "^0.13.4", "@readme/openapi-parser": "4.0.0", "fast-glob": "^3.3.3" } }, "sha512-mB9axDWOk9sxvGUznVDf5og8wOaAzqR3HC5I52CUwekDc4rhf1PrHxnEfdfFHuj3ym6Ltixy/q7mIFEBcWCBJg=="],
+    "openapi2markdown": ["openapi2markdown@0.0.6", "", { "dependencies": { "@joggr/tempo": "^0.13.4", "@readme/openapi-parser": "4.0.0", "fast-glob": "^3.3.3" } }, "sha512-EztMsXuKUSdfisdPa0RIWz1MhqIN2SDzaVF6Z7e/vawB1VH1uNVBoIWJGqAoRnijXE0386RA/ZzaEiJxk7tO5A=="],
 
     "package-manager-detector": ["package-manager-detector@1.2.0", "", {}, "sha512-PutJepsOtsqVfUsxCzgTTpyXmiAgvKptIgY4th5eq5UXXFhj5PxfQ9hnGkypMeovpAvVshFRItoFHYO18TCOqA=="],
 

@@ -33,7 +33,7 @@
     "@modelcontextprotocol/sdk": "^1.8.0",
     "js-yaml": "^4.1.0",
     "ofetch": "^1.4.1",
-    "openapi2markdown": "^0.0.5",
+    "openapi2markdown": "^0.0.6",
     "polka": "^0.5.2",
     "zod": "^3.24.2"
   }

@@ -106,6 +106,41 @@ class DocsManager {
 
     return { ...result, api }
   }
+
+  findModules(moduleNames: string[]): { found: Array<{ doc: ApiDoc; module: ApiDoc["modules"][0]; name: string }>; notFound: string[] } {
+    const found: Array<{ doc: ApiDoc; module: ApiDoc["modules"][0]; name: string }> = []
+    const notFound: string[] = []
+
+    for (const moduleName of moduleNames) {
+      const result = this.findModule(moduleName)
+      if (result) {
+        found.push({ ...result, name: moduleName })
+      } else {
+        notFound.push(moduleName)
+      }
+    }
+
+    return { found, notFound }
+  }
+
+  findApis(queries: Array<{ module_name: string; api_name: string }>): { 
+    found: Array<{ doc: ApiDoc; module: ApiDoc["modules"][0]; api: ApiDoc["modules"][0]["apis"][0]; query: { module_name: string; api_name: string } }>;
+    notFound: Array<{ module_name: string; api_name: string }>
+  } {
+    const found: Array<{ doc: ApiDoc; module: ApiDoc["modules"][0]; api: ApiDoc["modules"][0]["apis"][0]; query: { module_name: string; api_name: string } }> = []
+    const notFound: Array<{ module_name: string; api_name: string }> = []
+
+    for (const query of queries) {
+      const result = this.findApi(query.module_name, query.api_name)
+      if (result) {
+        found.push({ ...result, query })
+      } else {
+        notFound.push(query)
+      }
+    }
+
+    return { found, notFound }
+  }
 }
 
 const docsManager = new DocsManager()
@@ -123,224 +158,17 @@ const server = new McpServer(
   }
 )
 
-// Helper functions for fault-tolerant OpenAPI processing
+// Helper functions for OpenAPI processing
 
-// Clean OpenAPI document by removing problematic fields
-function sanitizeOpenApiDoc(doc: any): any {
-  if (!doc || typeof doc !== 'object') return doc
-
-  const cleaned = JSON.parse(JSON.stringify(doc))
-
-  // Remove custom extension fields that might cause parsing issues
-  const problematicFields = [
-    'x-test123', 'x-openapi', 'x-markdownFiles', 'x-ignoreParameters',
-    'x-order', 'x-java-class', 'x-tags'
-  ]
-
-  function cleanObject(obj: any): void {
-    if (!obj || typeof obj !== 'object') return
-
-    // Remove problematic extension fields
-    problematicFields.forEach(field => {
-      if (field in obj) {
-        delete obj[field]
-      }
-    })
-
-    // Fix schema references with non-ASCII characters
-    if (obj.$ref && typeof obj.$ref === 'string') {
-      // Replace non-ASCII characters in schema references
-      obj.$ref = obj.$ref.replace(/[^\x00-\x7F]/g, 'Schema')
-    }
-
-    // Recursively clean nested objects and arrays
-    Object.values(obj).forEach(value => {
-      if (Array.isArray(value)) {
-        value.forEach(cleanObject)
-      } else if (value && typeof value === 'object') {
-        cleanObject(value)
-      }
-    })
-  }
-
-  cleanObject(cleaned)
-  return cleaned
-}
-
-// Build markdown manually from OpenAPI JSON when automated parsing fails
-function buildMarkdownFromJson(doc: any): string {
-  const lines: string[] = []
-  
-  try {
-    // Document title and info
-    if (doc.info) {
-      lines.push(`# ${doc.info.title || 'API Documentation'}`)
-      lines.push('')
-      if (doc.info.description) {
-        lines.push(doc.info.description)
-        lines.push('')
-      }
-      if (doc.info.version) {
-        lines.push(`**Version:** ${doc.info.version}`)
-        lines.push('')
-      }
-    }
-
-    // Process paths/endpoints
-    if (doc.paths && typeof doc.paths === 'object') {
-      lines.push('## API Endpoints')
-      lines.push('')
-
-      // Group by tags if available
-      const pathsByTag: Record<string, Array<{path: string, method: string, info: any}>> = {}
-      
-      Object.entries(doc.paths).forEach(([path, pathInfo]: [string, any]) => {
-        if (!pathInfo || typeof pathInfo !== 'object') return
-
-        Object.entries(pathInfo).forEach(([method, methodInfo]: [string, any]) => {
-          if (!methodInfo || typeof methodInfo !== 'object') return
-          
-          const tags = methodInfo.tags || ['Default']
-          const tag = tags[0] || 'Default'
-          
-          if (!pathsByTag[tag]) {
-            pathsByTag[tag] = []
-          }
-          
-          pathsByTag[tag].push({
-            path,
-            method: method.toUpperCase(),
-            info: methodInfo
-          })
-        })
-      })
-
-      // Generate markdown for each tag group
-      Object.entries(pathsByTag).forEach(([tag, endpoints]) => {
-        lines.push(`### ${tag}`)
-        lines.push('')
-
-        endpoints.forEach(({ path, method, info }) => {
-          const summary = info.summary || info.operationId || `${method} ${path}`
-          lines.push(`#### ${summary}`)
-          lines.push('')
-          lines.push('```http')
-          lines.push(`${method} ${path}`)
-          lines.push('```')
-          lines.push('')
-          
-          if (info.description) {
-            lines.push(info.description)
-            lines.push('')
-          }
-        })
-      })
-    }
-
-    // Add components info if available
-    if (doc.components?.schemas) {
-      lines.push('## Data Schemas')
-      lines.push('')
-      const schemaCount = Object.keys(doc.components.schemas).length
-      lines.push(`This API defines ${schemaCount} data schema(s).`)
-      lines.push('')
-    }
-
-    return lines.join('\n')
-  } catch (error) {
-    console.error('Error building markdown from JSON:', error)
-    return generateJsonSummary(doc)
-  }
-}
-
-// Generate basic JSON structure summary as fallback
-function generateJsonSummary(doc: any): string {
-  const lines: string[] = []
-  
-  try {
-    lines.push('# Document Structure Summary')
-    lines.push('')
-    
-    if (doc && typeof doc === 'object') {
-      const keys = Object.keys(doc)
-      lines.push('**Top-level fields:**')
-      keys.forEach(key => {
-        const value = doc[key]
-        const type = Array.isArray(value) ? 'array' : typeof value
-        const count = Array.isArray(value) ? ` (${value.length} items)` : 
-                     (type === 'object' && value) ? ` (${Object.keys(value).length} properties)` : ''
-        lines.push(`- ${key}: ${type}${count}`)
-      })
-      lines.push('')
-
-      // Add specific info if available
-      if (doc.info?.title) {
-        lines.push(`**Title:** ${doc.info.title}`)
-      }
-      if (doc.info?.version) {
-        lines.push(`**Version:** ${doc.info.version}`)
-      }
-      if (doc.paths) {
-        const pathCount = Object.keys(doc.paths).length
-        lines.push(`**API Paths:** ${pathCount}`)
-      }
-      if (doc.components?.schemas) {
-        const schemaCount = Object.keys(doc.components.schemas).length
-        lines.push(`**Schemas:** ${schemaCount}`)
-      }
-    } else {
-      lines.push('Invalid document structure')
-    }
-
-    return lines.join('\n')
-  } catch (error) {
-    return `# Parse Error\n\nUnable to analyze document structure: ${error}`
-  }
-}
-
-// Extract modules and API information from OpenAPI document with fault tolerance
+// Convert OpenAPI document to Markdown using tolerant parsing
 async function parseOpenApiToMarkdown(openApiContent: unknown): Promise<string> {
-  // Layer 1: Try standard parsing
   try {
     const markdown = await openapi2markdown(openApiContent as any, { lang: "zhCN" })
-    console.log("✓ Standard OpenAPI parsing successful")
+    console.log("✓ OpenAPI to Markdown conversion successful")
     return markdown.toString()
-  } catch (layer1Error) {
-    console.log("✗ Standard parsing failed, trying cleanup approach...")
-    
-    // Layer 2: Try parsing after cleanup
-    try {
-      const cleanedContent = sanitizeOpenApiDoc(openApiContent)
-      const markdown = await openapi2markdown(cleanedContent, { lang: "zhCN" })
-      console.log("✓ Cleaned OpenAPI parsing successful")
-      return `# Auto-Cleaned Document\n\n> This document was automatically cleaned to resolve parsing issues.\n\n${markdown.toString()}`
-    } catch (layer2Error) {
-      console.log("✗ Cleaned parsing failed, building manually...")
-      
-      // Layer 3: Build markdown manually
-      try {
-        const manualMarkdown = buildMarkdownFromJson(openApiContent)
-        console.log("✓ Manual markdown construction successful")
-        return `# Manually Parsed Document\n\n> Standard parsing failed, document was manually processed.\n\n${manualMarkdown}`
-      } catch (layer3Error) {
-        console.log("✗ Manual parsing failed, using fallback summary...")
-        
-        // Layer 4: Generate basic summary
-        try {
-          const summary = generateJsonSummary(openApiContent)
-          console.log("✓ Fallback summary generated")
-          return `# Document Processing Report\n\n> All automated parsing methods failed, showing basic structure.\n\n**Errors encountered:**\n- Standard parsing: ${layer1Error instanceof Error ? layer1Error.message : String(layer1Error)}\n- Cleaned parsing: ${layer2Error instanceof Error ? layer2Error.message : String(layer2Error)}\n- Manual parsing: ${layer3Error instanceof Error ? layer3Error.message : String(layer3Error)}\n\n${summary}`
-        } catch (layer4Error) {
-          console.error("All parsing layers failed:", {
-            layer1: layer1Error,
-            layer2: layer2Error,
-            layer3: layer3Error,
-            layer4: layer4Error
-          })
-          return `# Complete Parsing Failure\n\nAll parsing attempts failed:\n\n1. **Standard parsing error:** ${layer1Error instanceof Error ? layer1Error.message : String(layer1Error)}\n2. **Cleaned parsing error:** ${layer2Error instanceof Error ? layer2Error.message : String(layer2Error)}\n3. **Manual parsing error:** ${layer3Error instanceof Error ? layer3Error.message : String(layer3Error)}\n4. **Summary generation error:** ${layer4Error instanceof Error ? layer4Error.message : String(layer4Error)}\n\nPlease check the document format and try again.`
-        }
-      }
-    }
+  } catch (error) {
+    console.error("OpenAPI parsing failed:", error)
+    throw new Error(`Failed to parse OpenAPI document: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -511,39 +339,40 @@ server.tool(
   }
 )
 
-// Tool 2: list_apis - List all APIs within the specified module
+// Tool 2: list_apis - List all APIs within the specified modules
 server.tool(
   "list_apis",
-  "List all APIs within the specified module",
+  "List all APIs within the specified modules",
   {
-    module_name: z.string().describe("Module name"),
+    module_names: z.array(z.string()).describe("Array of module names to query"),
   },
-  async (args: { module_name: string }) => {
+  async (args: { module_names: string[] }) => {
     try {
       await docsManager.ensureInitialized()
-      const result = docsManager.findModule(args.module_name)
+      const { found, notFound } = docsManager.findModules(args.module_names)
       
-      if (!result) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Module not found: ${args.module_name}`,
-            },
-          ],
-          isError: true,
-        }
+      // Build output content
+      const content = ["[multi-module apis start]"]
+      
+      // Add APIs for each found module
+      for (const { module, name } of found) {
+        content.push(`${name}:`)
+        content.push(dump(module.apis).replace(/^/gm, '  ')) // Indent the YAML content
       }
+      
+      // Add not found modules if any
+      if (notFound.length > 0) {
+        content.push("[not found modules]:")
+        content.push(dump(notFound).replace(/^/gm, '  '))
+      }
+      
+      content.push("[multi-module apis end]")
       
       return {
         content: [
           {
             type: "text",
-            text: [
-              "[module apis start]",
-              dump(result.module.apis),
-              "[module apis end]",
-            ].join("\n"),
+            text: content.join("\n"),
           },
         ],
       }
@@ -561,46 +390,52 @@ server.tool(
   }
 )
 
-// Tool 3: show_api - Show complete documentation for a specific API
+// Tool 3: show_api - Show complete documentation for multiple APIs
 server.tool(
   "show_api",
-  "Show complete documentation for a specific API",
+  "Show complete documentation for multiple APIs",
   {
-    module_name: z.string().describe("Module name"),
-    api_name: z.string().describe("API name"),
+    api_queries: z.array(z.object({
+      module_name: z.string().describe("Module name"),
+      api_name: z.string().describe("API name"),
+    })).describe("Array of API queries (module_name and api_name pairs)"),
   },
-  async (args: { module_name: string; api_name: string }) => {
+  async (args: { api_queries: Array<{ module_name: string; api_name: string }> }) => {
     try {
       await docsManager.ensureInitialized()
-      const result = docsManager.findApi(args.module_name, args.api_name)
+      const { found, notFound } = docsManager.findApis(args.api_queries)
       
-      if (!result) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `API not found in module ${args.module_name}: ${args.api_name}`,
-            },
-          ],
-          isError: true,
+      // Build output content
+      const content = ["[multi-api details start]"]
+      
+      // Add details for each found API
+      for (const { doc, query } of found) {
+        const apiDetails = getApiDetailsFromMarkdown(
+          doc.markdown,
+          query.module_name,
+          query.api_name
+        )
+        
+        content.push(`${query.module_name}::${query.api_name}:`)
+        content.push(apiDetails.replace(/^/gm, '  ')) // Indent the content
+        content.push('') // Add empty line between APIs
+      }
+      
+      // Add not found APIs if any
+      if (notFound.length > 0) {
+        content.push("[not found apis]:")
+        for (const query of notFound) {
+          content.push(`  - ${query.module_name}::${query.api_name}`)
         }
       }
       
-      const apiDetails = getApiDetailsFromMarkdown(
-        result.doc.markdown,
-        args.module_name,
-        args.api_name
-      )
+      content.push("[multi-api details end]")
       
       return {
         content: [
           {
             type: "text",
-            text: [
-              "[api details start]",
-              apiDetails,
-              "[api details end]",
-            ].join("\n"),
+            text: content.join("\n"),
           },
         ],
       }
