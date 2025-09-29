@@ -12,6 +12,7 @@ This project provides a Model Context Protocol (MCP) server that converts OpenAP
 - **Multiple Documentation Sources**: Support for comma-separated OpenAPI URLs
 - **Unified Output Format**: Consistent response structure with partial success handling
 - **Type-Safe Implementation**: Full TypeScript support with proper interfaces
+- **Fuzzy One-shot Search**: `query_api` powered by Fuse.js for fast discovery
 
 ## Usage
 
@@ -46,57 +47,57 @@ Server runs on port 3000 (or PORT env var) with endpoints:
 - `/sse` - Server-Sent Events transport
 - `/messages` - POST message handling
 
-## Available Tools
+## Tools & When To Use
 
-The server provides three main tools with batch query capabilities:
+Choose the smallest tool that fits the job. All responses use stable markers for easy parsing.
 
-### 1. `list_modules`
-List all available API documentation modules with overview.
+### 1) `query_api` — one-shot fuzzy search
+- Use when: you're unsure of exact names and want search + optional full view.
+- Matches: `Module::API`, `GET /path`, or fuzzy keywords.
+- Modes: `auto` (default, show full when exactly one match), `summary` (always list), `full` (always show first match details).
+- Params: `{ q: string, mode?: 'auto'|'summary'|'full', limit?: number }`
 
-**Parameters**: None
+Examples:
+```js
+// Fuzzy search, summary list
+query_api({ q: "user list", limit: 5 })
 
-**Output**: YAML format with module names, descriptions, and API counts.
+// Exact match by method+path, return full details
+query_api({ q: "GET /users/{id}", mode: "full" })
 
-### 2. `list_apis` 
-List all APIs within multiple modules.
+// Module::API direct lookup
+query_api({ q: "UserService::ListUsers" })
+```
 
-**Parameters**: 
-- `module_names: string[]` - Array of module names to query
+### 2) `list_modules` — overview first
+- Use when: you need a top-level map before drilling down.
+- Params: none
+- Output markers: `[docs list start] ... [docs list end]`
 
-**Examples**:
-```javascript
-// Query single module
+### 3) `list_apis` — enumerate APIs in known modules
+- Use when: module names are known and you need candidates.
+- Params: `{ module_names: string[] }`
+
+Examples:
+```js
 list_apis({ module_names: ["UserModule"] })
-
-// Query multiple modules
 list_apis({ module_names: ["UserModule", "ProductModule", "OrderModule"] })
 ```
+- Output markers: `[multi-module apis start] ... [multi-module apis end]` (including `[not found modules]`)
 
-**Output**: Multi-module format with found APIs and not-found modules listed separately.
+### 4) `show_api` — render full Markdown for known APIs
+- Use when: you already know exact module+API names.
+- Params: `{ api_queries: { module_name, api_name }[] }`
 
-### 3. `show_api`
-Show complete documentation for multiple APIs.
-
-**Parameters**:
-- `api_queries: Array<{module_name: string, api_name: string}>` - Array of API queries
-
-**Examples**:
-```javascript
-// Query single API
-show_api({ 
-  api_queries: [{ module_name: "UserModule", api_name: "Create User" }] 
-})
-
-// Query multiple APIs
-show_api({ 
-  api_queries: [
-    { module_name: "UserModule", api_name: "Create User" },
-    { module_name: "ProductModule", api_name: "Get Product" }
-  ]
-})
+Examples:
+```js
+show_api({ api_queries: [{ module_name: "UserModule", api_name: "Create User" }] })
+show_api({ api_queries: [
+  { module_name: "UserModule", api_name: "Create User" },
+  { module_name: "ProductModule", api_name: "Get Product" },
+] })
 ```
-
-**Output**: Detailed documentation for each found API with not-found APIs listed separately.
+- Output markers: `[multi-api details start] ... [multi-api details end]` (including `[not found apis]`)
 
 ## Batch Query Benefits
 
