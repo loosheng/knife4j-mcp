@@ -7,6 +7,7 @@ import { dump } from "js-yaml"
 import { version } from "./package.json"
 import { openapi2markdown } from "openapi2markdown"
 import { ofetch } from "ofetch"
+import Fuse from "fuse.js"
 
 // Check environment variables
 const DOCS_URL = process.env.DOCS_URL
@@ -18,19 +19,7 @@ if (!DOCS_URL) {
 const docsUrls = DOCS_URL.split(",").map((url) => url.trim())
 
 // Types for OpenAPI document structure
-interface OpenAPIDocument {
-  openapi?: string
-  swagger?: string
-  info: {
-    title: string
-    version: string
-    description?: string
-  }
-  paths: Record<string, any>
-  components?: Record<string, any>
-  servers?: Array<{ url: string; description?: string }>
-  [key: string]: any
-}
+// NOTE: Removed unused OpenAPIDocument interface to reduce noise in diagnostics.
 
 // Store document content
 type ApiDoc = {
@@ -446,6 +435,120 @@ server.tool(
             type: "text",
             text: error instanceof Error ? error.message : String(error),
           },
+        ],
+        isError: true,
+      }
+    }
+  }
+)
+
+// Tool 4: query_api - Fuzzy search APIs across all modules (one-shot discover + view)
+server.tool(
+  "query_api",
+  "Fuzzy search APIs by name/module/path/method; optionally return full details",
+  {
+    q: z.string().describe("Search query. Examples: 'User::GetInfo', 'GET /users/{id}', 'users list'"),
+    mode: z
+      .enum(["auto", "summary", "full"]) 
+      .optional()
+      .describe("'auto' shows full text when exactly one match; 'summary' lists results; 'full' always returns first match details"),
+    limit: z.number().int().positive().max(50).optional().describe("Max number of results (default 10)"),
+  },
+  async (args: { q: string; mode?: "auto" | "summary" | "full"; limit?: number }) => {
+    try {
+      await docsManager.ensureInitialized()
+
+      const mode = args.mode ?? "auto"
+      const limit = Math.min(Math.max(args.limit ?? 10, 1), 50)
+      const query = args.q.trim()
+
+      type SearchItem = { module: string; api: string; method: string; path: string }
+      const items: SearchItem[] = docsManager.getAllModules().flatMap((m) =>
+        m.apis.map((a) => ({ module: m.name, api: a.name, method: a.method, path: a.path }))
+      )
+
+      // Direct patterns
+      const moduleApiMatch = query.includes("::")
+      const methodPathMatch = /^([A-Z]+)\s+(\/\S+)/.exec(query)
+
+      let matched: SearchItem[] = []
+
+      if (moduleApiMatch) {
+        const [mod, api] = query.split("::", 2).map((s) => s.trim())
+        matched = items.filter(
+          (it) => it.module.toLowerCase() === mod.toLowerCase() && it.api.toLowerCase() === api.toLowerCase()
+        )
+      } else if (methodPathMatch) {
+        const method = methodPathMatch[1].toUpperCase()
+        const path = methodPathMatch[2]
+        matched = items.filter((it) => it.method.toUpperCase() === method && it.path === path)
+      }
+
+      if (matched.length === 0) {
+        const fuse = new Fuse(items, {
+          includeScore: true,
+          threshold: 0.38,
+          ignoreLocation: true,
+          keys: [
+            { name: "api", weight: 0.5 },
+            { name: "path", weight: 0.3 },
+            { name: "module", weight: 0.15 },
+            { name: "method", weight: 0.05 },
+          ],
+        })
+        matched = fuse.search(query).slice(0, limit).map((r) => r.item)
+      } else {
+        matched = matched.slice(0, limit)
+      }
+
+      const lines: string[] = ["[api query start]"]
+
+      if (matched.length === 0) {
+        lines.push("no results")
+        lines.push("[api query end]")
+        return { content: [{ type: "text", text: lines.join("\n") }] }
+      }
+
+      const wantFull = mode === "full" || (mode === "auto" && matched.length === 1)
+
+      if (!wantFull) {
+        // Summary list with hints for follow-up calls
+        lines.push("matches:")
+        lines.push(
+          dump(
+            matched.map((m) => ({
+              module: m.module,
+              api: m.api,
+              method: m.method,
+              path: m.path,
+              show_api_args: { module_name: m.module, api_name: m.api },
+            }))
+          )
+            .replace(/^/gm, "  ")
+        )
+        lines.push("[api query end]")
+        return { content: [{ type: "text", text: lines.join("\n") }] }
+      }
+
+      // Full details for the first match
+      const first = matched[0]
+      const found = docsManager.findApi(first.module, first.api)
+      if (!found) {
+        lines.push(`not found at render time: ${first.module}::${first.api}`)
+        lines.push("[api query end]")
+        return { content: [{ type: "text", text: lines.join("\n") }] }
+      }
+
+      const md = getApiDetailsFromMarkdown(found.doc.markdown, first.module, first.api)
+      lines.push(`${first.module}::${first.api}:`)
+      lines.push(md.replace(/^/gm, "  "))
+      lines.push("[api query end]")
+
+      return { content: [{ type: "text", text: lines.join("\n") }] }
+    } catch (error) {
+      return {
+        content: [
+          { type: "text", text: error instanceof Error ? error.message : String(error) },
         ],
         isError: true,
       }

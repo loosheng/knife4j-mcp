@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
+    "fuse.js": "^6.6.2",
     "js-yaml": "^4.1.0",
     "ofetch": "^1.4.1",
     "openapi2markdown": "^0.0.6",
