@@ -289,7 +289,12 @@ function escapeRegExp(string: string): string {
 // Tool 1: list_modules - List all available API documentation modules
 server.tool(
   "list_modules",
-  "List all available API documentation modules with overview",
+  [
+    "Discover top-level API modules and their size.",
+    "Use when: you need an overview before drilling down.",
+    "Avoid when: you already know module or API names (use list_apis/query_api).",
+    "Returns: YAML list of {name, description, api_count} between [docs list start]/[docs list end].",
+  ].join("\n"),
   {},
   async () => {
     try {
@@ -331,7 +336,13 @@ server.tool(
 // Tool 2: list_apis - List all APIs within the specified modules
 server.tool(
   "list_apis",
-  "List all APIs within the specified modules",
+  [
+    "Enumerate APIs in specific modules for precise selection.",
+    "Use when: you know target module names and want API options.",
+    "Avoid when: exploring vaguely (use query_api).",
+    "Returns: Per-module YAML under [multi-module apis start]/[multi-module apis end]; includes [not found modules] if any.",
+    "Args: module_names: string[].",
+  ].join("\n"),
   {
     module_names: z.array(z.string()).describe("Array of module names to query"),
   },
@@ -382,7 +393,13 @@ server.tool(
 // Tool 3: show_api - Show complete documentation for multiple APIs
 server.tool(
   "show_api",
-  "Show complete documentation for multiple APIs",
+  [
+    "Render full Markdown docs for specified APIs.",
+    "Use when: you already know exact module+API names.",
+    "Avoid when: browsing or fuzzy finding (use query_api/list_apis).",
+    "Returns: Indented Markdown per API between [multi-api details start]/[multi-api details end]; lists [not found apis] as bullets.",
+    "Args: api_queries: { module_name, api_name }[].",
+  ].join("\n"),
   {
     api_queries: z.array(z.object({
       module_name: z.string().describe("Module name"),
@@ -445,7 +462,14 @@ server.tool(
 // Tool 4: query_api - Fuzzy search APIs across all modules (one-shot discover + view)
 server.tool(
   "query_api",
-  "Fuzzy search APIs by name/module/path/method; optionally return full details",
+  [
+    "One-shot fuzzy search across module/API/method/path; optional direct view.",
+    "Use when: you are unsure of exact names and want to find then view in one step.",
+    "Matching: 'Module::API', 'GET /path', or keywords with fuzziness.",
+    "Modes: auto (default, full if exactly 1 match), summary (always list), full (show first match).",
+    "Returns: [api query start]/[api query end] wrapped text; summary lists items with show_api_args for direct follow-up.",
+    "Args: q: string, mode?: 'auto'|'summary'|'full', limit?: number (<=50).",
+  ].join("\n"),
   {
     q: z.string().describe("Search query. Examples: 'User::GetInfo', 'GET /users/{id}', 'users list'"),
     mode: z
