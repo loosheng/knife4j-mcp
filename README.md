@@ -1,5 +1,10 @@
 # knife4j-mcp
 
+<p>
+<img alt="NPM Downloads" src="https://img.shields.io/npm/dm/knife4j-mcp">
+<img alt="NPM Version" src="https://img.shields.io/npm/v/knife4j-mcp">
+</p>
+
 MCP server for [Knife4j](https://doc.xiaominfo.com/) OpenAPI documentation.
 
 This project provides a Model Context Protocol (MCP) server that converts OpenAPI documentation to Markdown format with built-in tolerant parsing, making it easily accessible to LLMs for batch operations and comprehensive API exploration.
@@ -35,15 +40,19 @@ This project provides a Model Context Protocol (MCP) server that converts OpenAP
 ### Server Modes
 
 **Default (stdio mode)**: For MCP client integration
+
 ```bash
 npx knife4j-mcp
 ```
 
 **SSE Mode**: For HTTP-based access
+
 ```bash
 npx knife4j-mcp --sse
 ```
+
 Server runs on port 3000 (or PORT env var) with endpoints:
+
 - `/sse` - Server-Sent Events transport
 - `/messages` - POST message handling
 
@@ -52,12 +61,14 @@ Server runs on port 3000 (or PORT env var) with endpoints:
 Choose the smallest tool that fits the job. All responses use stable markers for easy parsing.
 
 ### 1) `query_api` — one-shot fuzzy search
+
 - Use when: you're unsure of exact names and want search + optional full view.
 - Matches: `Module::API`, `GET /path`, or fuzzy keywords.
 - Modes: `auto` (default, show full when exactly one match), `summary` (always list), `full` (always show first match details).
 - Params: `{ q: string, mode?: 'auto'|'summary'|'full', limit?: number }`
 
 Examples:
+
 ```js
 // Fuzzy search, summary list
 query_api({ q: "user list", limit: 5 })
@@ -70,33 +81,44 @@ query_api({ q: "UserService::ListUsers" })
 ```
 
 ### 2) `list_modules` — overview first
+
 - Use when: you need a top-level map before drilling down.
 - Params: none
 - Output markers: `[docs list start] ... [docs list end]`
 
 ### 3) `list_apis` — enumerate APIs in known modules
+
 - Use when: module names are known and you need candidates.
 - Params: `{ module_names: string[] }`
 
 Examples:
+
 ```js
 list_apis({ module_names: ["UserModule"] })
 list_apis({ module_names: ["UserModule", "ProductModule", "OrderModule"] })
 ```
+
 - Output markers: `[multi-module apis start] ... [multi-module apis end]` (including `[not found modules]`)
 
 ### 4) `show_api` — render full Markdown for known APIs
+
 - Use when: you already know exact module+API names.
 - Params: `{ api_queries: { module_name, api_name }[] }`
 
 Examples:
+
 ```js
-show_api({ api_queries: [{ module_name: "UserModule", api_name: "Create User" }] })
-show_api({ api_queries: [
-  { module_name: "UserModule", api_name: "Create User" },
-  { module_name: "ProductModule", api_name: "Get Product" },
-] })
+show_api({
+  api_queries: [{ module_name: "UserModule", api_name: "Create User" }],
+})
+show_api({
+  api_queries: [
+    { module_name: "UserModule", api_name: "Create User" },
+    { module_name: "ProductModule", api_name: "Get Product" },
+  ],
+})
 ```
+
 - Output markers: `[multi-api details start] ... [multi-api details end]` (including `[not found apis]`)
 
 ## Batch Query Benefits
@@ -144,7 +166,9 @@ show_api({ module_name: "UserModule", api_name: "Create User" })
 
 // New format (array-based)
 list_apis({ module_names: ["UserModule"] })
-show_api({ api_queries: [{ module_name: "UserModule", api_name: "Create User" }] })
+show_api({
+  api_queries: [{ module_name: "UserModule", api_name: "Create User" }],
+})
 ```
 
 ## License
