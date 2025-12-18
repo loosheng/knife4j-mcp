@@ -34,7 +34,7 @@
     "fuse.js": "^6.6.2",
     "js-yaml": "^4.1.0",
     "ofetch": "^1.4.1",
-    "openapi2markdown": "^0.0.8",
+    "openapi2markdown": "^0.0.9",
     "polka": "^0.5.2",
     "zod": "^3.24.2"
   }
