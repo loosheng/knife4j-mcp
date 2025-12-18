@@ -8,6 +8,7 @@ import { version } from "./package.json"
 import { openapi2markdown } from "openapi2markdown"
 import { ofetch } from "ofetch"
 import Fuse from "fuse.js"
+import { writeFile } from "node:fs/promises"
 
 // Check environment variables
 const DOCS_URL = process.env.DOCS_URL
@@ -581,7 +582,28 @@ server.tool(
 )
 
 // Start the server
-if (process.argv.includes("--sse")) {
+if (process.argv.includes("--debug")) {
+  // Debug mode: fetch and convert OpenAPI docs to Markdown files
+  console.log("Debug mode: fetching and converting OpenAPI docs...")
+
+  for (let i = 0; i < docsUrls.length; i++) {
+    const url = docsUrls[i]
+    console.log(`Processing [${i + 1}/${docsUrls.length}]: ${url}`)
+
+    try {
+      const openApiContent = await ofetch(url)
+      const markdown = await parseOpenApiToMarkdown(openApiContent)
+
+      const filename = `docs-${i + 1}.md`
+      await writeFile(filename, markdown, "utf-8")
+      console.log(`✓ Written: ${filename}`)
+    } catch (error) {
+      console.error(`✗ Failed to process ${url}:`, error)
+    }
+  }
+
+  console.log("Debug complete.")
+} else if (process.argv.includes("--sse")) {
   const transports = new Map<string, SSEServerTransport>()
   const port = Number(process.env.PORT || "3000")
 
