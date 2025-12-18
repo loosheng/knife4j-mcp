@@ -6,7 +6,7 @@ This project provides a Model Context Protocol (MCP) server that converts OpenAP
 
 ## Features
 
-- **Built-in Tolerant Parsing**: Uses `openapi2markdown@0.0.6` with automatic error recovery
+- **Built-in Tolerant Parsing**: Uses [openapi2markdown](https://github.com/loosheng/openapi2markdown) with automatic error recovery
 - **Batch Query Support**: Query multiple modules and APIs in single requests
 - **Thread-Safe Architecture**: Concurrent request handling with lazy initialization
 - **Multiple Documentation Sources**: Support for comma-separated OpenAPI URLs
@@ -129,7 +129,7 @@ bun run index.ts --sse
 
 - **Single-file MCP Server**: Complete implementation in `index.ts`
 - **DocsManager Class**: Thread-safe document state management with batch query methods
-- **Simplified Parsing**: Relies on `openapi2markdown@0.0.6` built-in tolerant parsing
+- **Simplified Parsing**: Relies on [openapi2markdown](https://github.com/loosheng/openapi2markdown) built-in tolerant parsing
 - **Utility Functions**: Unified section parsing and error handling
 - **Environment Configuration**: `DOCS_URL` for OpenAPI source URLs
 
